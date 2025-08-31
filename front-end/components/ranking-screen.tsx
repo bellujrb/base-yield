@@ -2,14 +2,7 @@
 
 import { motion } from "framer-motion"
 
-interface RankingScreenProps {
-  currentPlayer: {
-    level: number
-    tokens: number
-  }
-}
-
-export default function RankingScreen({ currentPlayer }: RankingScreenProps) {
+export default function RankingScreen() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

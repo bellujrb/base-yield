@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { motion } from "framer-motion"
 import { Transaction } from '@coinbase/onchainkit/transaction'
 import GameHeader from "./game-header"
 import FarmGrid from "./farm-grid"
@@ -44,12 +43,10 @@ interface HomeProps {
   onBackToHome?: () => void
 }
 
-export default function Home({ onBackToHome }: HomeProps) {
+export default function Home({ }: HomeProps) {
   const {
     farms,
     userData,
-    loading,
-    error,
     getStakeCalls,
     getHarvestCalls,
     refreshData,
@@ -98,7 +95,6 @@ export default function Home({ onBackToHome }: HomeProps) {
   })
 
   const [notification, setNotification] = useState<string | null>(null)
-  const [collectionAnimation, setCollectionAnimation] = useState<{ index: number; tokens: number } | null>(null)
   const [harvestCelebration, setHarvestCelebration] = useState<{
     isOpen: boolean
     data: {
@@ -120,20 +116,7 @@ export default function Home({ onBackToHome }: HomeProps) {
     setTimeout(() => setNotification(null), 3000)
   }, [])
 
-  const checkLevelUp = useCallback(() => {
-    setGameState((prev) => {
-      const requiredExp = prev.level * 100
-      if (prev.experience >= requiredExp) {
-        showNotification(`Level ${prev.level + 1}! +10💎 bonus!`)
-        return {
-          ...prev,
-          level: prev.level + 1,
-          tokens: prev.tokens + 10,
-        }
-      }
-      return prev
-    })
-  }, [showNotification])
+
 
   const plantToken = useCallback(
     (index: number, tokenType: TokenType, stakeAmount: number) => {
@@ -220,9 +203,7 @@ export default function Home({ onBackToHome }: HomeProps) {
       case "transactions":
         return <TransactionsScreen />
       case "ranking":
-        return (
-          <RankingScreen currentPlayer={{ level: gameState.level, tokens: gameState.tokens }} />
-        )
+          return <RankingScreen />
       default:
         return (
           <div>
@@ -232,7 +213,6 @@ export default function Home({ onBackToHome }: HomeProps) {
               plots={gameState.plots}
               onPlotClick={handlePlotClick}
               onPlantToken={plantToken}
-              collectionAnimation={collectionAnimation}
               getStakeCalls={getStakeCalls}
               onTransactionSuccess={onTransactionSuccess}
               onTransactionError={onTransactionError}
@@ -253,12 +233,10 @@ export default function Home({ onBackToHome }: HomeProps) {
             const progress = getGrowthProgress(farm)
             const stage = getGrowthStage(farm)
             
-            const stakedAmountValue = Number(farm.stakedAmount) / 1000000000000000000
-            
             newPlots[index] = {
               ...newPlots[index],
               planted: true,
-              stakedAmount: 2, // Se NaN, usar 2
+              stakedAmount: 2, // Default value
               plantTime: Number(farm.plantTime) * 1000, // Converter para ms
               harvestTime: Number(farm.harvestTime) * 1000,
               growthStage: stage,
@@ -325,8 +303,9 @@ export default function Home({ onBackToHome }: HomeProps) {
     setTransactionState({ type: null })
   }, [showNotification, refreshData, transactionState])
 
-  const onTransactionError = useCallback((error: any) => {
-    showNotification(`Transaction failed: ${error.message || 'Unknown error'}`)
+  const onTransactionError = useCallback((error: unknown) => {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    showNotification(`Transaction failed: ${errorMessage}`)
     setTransactionState({ type: null })
   }, [showNotification])
 

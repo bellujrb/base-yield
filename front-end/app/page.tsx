@@ -10,7 +10,6 @@ import {
   Identity,
   Address,
   Avatar,
-  Badge,
   EthBalance,
 } from "@coinbase/onchainkit/identity";
 import {
@@ -21,8 +20,7 @@ import {
 } from "@coinbase/onchainkit/wallet";
 import { useAccount } from "wagmi";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import TokenFarmGame from "../components/token-farm-game";
+import { motion } from "framer-motion";
 import Home from "../components/token-farm-game";
 
 // Login Screen Component
@@ -80,7 +78,7 @@ function LoginScreen() {
 function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [plotAnimations, setPlotAnimations] = useState<number[]>([]);
+
 
   const steps = [
     {
@@ -151,7 +149,7 @@ function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     return lines;
   };
 
-  const renderPlotVisual = (step: any, index: number) => {
+  const renderPlotVisual = (step: { title: string; description: string; visual: string; color: string; stage: number }, index: number) => {
     const isReady = step.stage === 4;
     
     return (
@@ -357,7 +355,7 @@ export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const { address, isConnected } = useAccount();
   const [frameAdded, setFrameAdded] = useState(false);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab] = useState("home");
   const [showOnboarding, setShowOnboarding] = useState(true);
 
   const addFrame = useAddFrame();

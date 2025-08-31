@@ -10,17 +10,15 @@ interface FarmGridProps {
   plots: PlotType[]
   onPlotClick: (index: number) => void
   onPlantToken: (index: number, tokenType: TokenType, stakeAmount: number) => void
-  collectionAnimation?: { index: number; tokens: number } | null
   getStakeCalls: (amount: string) => ContractFunctionParameters[]
   onTransactionSuccess: () => void
-  onTransactionError: (error: any) => void
+  onTransactionError: (error: unknown) => void
 }
 
 export default function FarmGrid({
   plots,
   onPlotClick,
   onPlantToken,
-  collectionAnimation,
   getStakeCalls,
   onTransactionSuccess,
   onTransactionError,
@@ -39,8 +37,6 @@ export default function FarmGrid({
             plot={plot}
             onPlant={(tokenType, stakeAmount) => onPlantToken(index, tokenType, stakeAmount)}
             onHarvest={() => onPlotClick(index)}
-            isAnimating={collectionAnimation?.index === index}
-            animationTokens={collectionAnimation?.tokens || 0}
             getStakeCalls={getStakeCalls}
             onTransactionSuccess={onTransactionSuccess}
             onTransactionError={onTransactionError}

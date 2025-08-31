@@ -8,8 +8,6 @@ interface GameHeaderProps {
 }
 
 export default function GameHeader({ gameState }: GameHeaderProps) {
-  const stakedTokens = Math.floor(gameState.tokens * 0.6) // 60% staked
-
   return (
     <motion.div
       className="relative bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl p-4 mb-6 shadow-lg shadow-blue-500/10"

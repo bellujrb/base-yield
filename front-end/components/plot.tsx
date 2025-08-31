@@ -11,10 +11,9 @@ interface PlotProps {
   onPlant: (tokenType: TokenType, stakeAmount: number) => void
   onHarvest: () => void
   isAnimating?: boolean
-  animationTokens?: number
   getStakeCalls: (amount: string) => ContractFunctionParameters[]
   onTransactionSuccess: () => void
-  onTransactionError: (error: any) => void
+  onTransactionError: (error: unknown) => void
 }
 
 export default function Plot({
@@ -22,7 +21,6 @@ export default function Plot({
   onPlant,
   onHarvest,
   isAnimating,
-  animationTokens,
   getStakeCalls,
   onTransactionSuccess,
   onTransactionError,

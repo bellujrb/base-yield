@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Transaction } from '@coinbase/onchainkit/transaction'
 import type { ContractFunctionParameters } from 'viem'
 import { parseUnits, formatUnits } from 'viem'
-import { baseSepolia } from 'wagmi/chains'
 
 // Função para normalizar input do usuário (vírgula para ponto)
 const normalizeInput = (value: string): string => {
@@ -17,7 +16,7 @@ const safeParseEth = (input: string): bigint => {
   try {
     const normalized = normalizeInput(input)
     return parseUnits(normalized, 18) // 18 decimais para ETH
-  } catch (error) {
+  } catch {
     throw new Error('Valor inválido')
   }
 }
@@ -45,7 +44,7 @@ interface TokenSelectorProps {
   onSelectToken: (tokenType: TokenType, stakeAmount: number) => void
   getStakeCalls: (amount: string) => ContractFunctionParameters[]
   onTransactionSuccess: () => void
-  onTransactionError: (error: any) => void
+  onTransactionError: (error: unknown) => void
 }
 
 export default function TokenSelector({
@@ -114,7 +113,7 @@ export default function TokenSelector({
     }
   }
 
-  const handleTransactionError = (error: any) => {
+  const handleTransactionError = (error: unknown) => {
     setShowTransaction(false)
     onTransactionError(error)
   }
@@ -126,7 +125,7 @@ export default function TokenSelector({
       const weiValue = safeParseEth(stakeAmount || "0.0001")
       const amountInEther = formatEthForDisplay(weiValue)
       return getStakeCalls(amountInEther)
-    } catch (error) {
+    } catch {
       // Fallback para valor mínimo em caso de erro
       const fallbackWei = parseUnits("0.0001", 18)
       const fallbackAmount = formatEthForDisplay(fallbackWei)
@@ -141,15 +140,7 @@ export default function TokenSelector({
     onClose()
   }
 
-  const getStakeAmountValue = () => {
-    try {
-      const weiValue = safeParseEth(stakeAmount || "0.0001")
-      const ethValue = formatEthForDisplay(weiValue)
-      return parseFloat(ethValue)
-    } catch (error) {
-      return 0.0001
-    }
-  }
+
 
   return (
     <AnimatePresence>
@@ -309,7 +300,7 @@ export default function TokenSelector({
                 {showTransaction && (
                   <div className="mt-4">
                     <Transaction
-                      chainId={baseSepolia.id}
+                      chainId={84532}
                       calls={getCurrentStakeCalls()}
                       onSuccess={handleTransactionSuccess}
                       onError={handleTransactionError}
