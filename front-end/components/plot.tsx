@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import type { Plot as PlotType } from "./token-farm-game"
 import TokenSelector, { type TokenType } from "./token-selector"
+import type { ContractFunctionParameters } from 'viem'
 
 interface PlotProps {
   plot: PlotType
@@ -11,7 +12,9 @@ interface PlotProps {
   onHarvest: () => void
   isAnimating?: boolean
   animationTokens?: number
-  playerLevel: number
+  getStakeCalls: (amount: string) => ContractFunctionParameters[]
+  onTransactionSuccess: () => void
+  onTransactionError: (error: any) => void
 }
 
 export default function Plot({
@@ -20,7 +23,9 @@ export default function Plot({
   onHarvest,
   isAnimating,
   animationTokens,
-  playerLevel,
+  getStakeCalls,
+  onTransactionSuccess,
+  onTransactionError,
 }: PlotProps) {
   const [showTokenSelector, setShowTokenSelector] = useState(false)
 
@@ -29,10 +34,12 @@ export default function Plot({
       return { progressPercent: 0, timeRemaining: "" }
     }
 
-    const elapsed = Date.now() - plot.plantTime
-    const progress = Math.min(elapsed / plot.growthTime, 1)
+    const now = Date.now()
+    const totalGrowthTime = plot.harvestTime - plot.plantTime
+    const elapsed = now - plot.plantTime
+    const progress = Math.min(elapsed / totalGrowthTime, 1)
 
-    const remaining = Math.max(0, plot.growthTime - elapsed)
+    const remaining = Math.max(0, plot.harvestTime - now)
     const minutes = Math.floor(remaining / 60000)
     const seconds = Math.floor((remaining % 60000) / 1000)
     const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`
@@ -112,7 +119,7 @@ export default function Plot({
             >
               <motion.div
                 className="w-4 h-4 rounded-sm"
-                style={{ backgroundColor: plot.tokenType?.color || "#0052ff" }}
+                style={{ backgroundColor: "#0052ff" }}
                 initial={{ scale: 0, rotate: 0 }}
                 animate={{ scale: [0, 1.5, 0], rotate: [0, 180, 360] }}
                 transition={{ duration: 0.6 }}
@@ -164,21 +171,10 @@ export default function Plot({
           {plot.planted && (
             <>
               <div className="absolute inset-0">
-                {generateVerticalLines(plot.stage, plot.ready, plot.tokenType?.color)}
+                {generateVerticalLines(plot.growthStage, plot.ready, "#0052ff")}
               </div>
 
-              {plot.tokenCount > 1 && (
-                <motion.div
-                  className="absolute top-2 left-2 text-white px-1.5 py-0.5 rounded-sm text-xs font-medium flex items-center gap-1"
-                  style={{ backgroundColor: plot.tokenType?.color || "#0052ff" }}
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-                >
-                  <div className="w-1.5 h-1.5 bg-white rounded-sm opacity-80" />
-                  {plot.tokenCount}
-                </motion.div>
-              )}
+
 
               <motion.div
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -195,11 +191,11 @@ export default function Plot({
                 <motion.div
                   className="rounded-sm"
                   style={{
-                    backgroundColor: plot.ready ? "#22c55e" : plot.tokenType?.color || "#ec4899",
+                    backgroundColor: plot.ready ? "#22c55e" : "#0052ff",
                   }}
                   animate={{
-                    width: `${12 + plot.stage * 3}px`,
-                    height: `${12 + plot.stage * 3}px`,
+                    width: `${12 + plot.growthStage * 3}px`,
+                    height: `${12 + plot.growthStage * 3}px`,
                   }}
                   transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                 />
@@ -241,7 +237,9 @@ export default function Plot({
         isOpen={showTokenSelector}
         onClose={() => setShowTokenSelector(false)}
         onSelectToken={handleSelectToken}
-        playerLevel={playerLevel}
+        getStakeCalls={getStakeCalls}
+        onTransactionSuccess={onTransactionSuccess}
+        onTransactionError={onTransactionError}
       />
     </>
   )

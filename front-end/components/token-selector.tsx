@@ -2,63 +2,40 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { Transaction } from '@coinbase/onchainkit/transaction'
+import type { ContractFunctionParameters } from 'viem'
+import { parseUnits, formatUnits } from 'viem'
+import { baseSepolia } from 'wagmi/chains'
+
+// Função para normalizar input do usuário (vírgula para ponto)
+const normalizeInput = (value: string): string => {
+  return value.replace(',', '.')
+}
+
+// Função para converter input do usuário para wei de forma segura
+const safeParseEth = (input: string): bigint => {
+  try {
+    const normalized = normalizeInput(input)
+    return parseUnits(normalized, 18) // 18 decimais para ETH
+  } catch (error) {
+    throw new Error('Valor inválido')
+  }
+}
+
+// Função para converter wei de volta para display
+const formatEthForDisplay = (weiValue: bigint): string => {
+  return formatUnits(weiValue, 18)
+}
 
 export interface TokenType {
   id: string
   name: string
-  cost: number
-  growthTime: number
-  baseReward: number
-  color: string
-  rarity: "common" | "rare" | "epic" | "legendary"
-  unlockLevel: number
-  description: string
 }
 
 export const TOKEN_TYPES: TokenType[] = [
   {
-    id: "base",
-    name: "BASE",
-    cost: 10,
-    growthTime: 30000, // 30 seconds
-    baseReward: 15,
-    color: "#0052ff",
-    rarity: "common",
-    unlockLevel: 1,
-    description: "The foundation token",
-  },
-  {
     id: "eth",
-    name: "ETH",
-    cost: 25,
-    growthTime: 45000, // 45 seconds
-    baseReward: 40,
-    color: "#627eea",
-    rarity: "rare",
-    unlockLevel: 3,
-    description: "Ethereum's native token",
-  },
-  {
-    id: "usdc",
-    name: "USDC",
-    cost: 50,
-    growthTime: 60000, // 1 minute
-    baseReward: 80,
-    color: "#2775ca",
-    rarity: "epic",
-    unlockLevel: 5,
-    description: "Stable and reliable",
-  },
-  {
-    id: "onchain",
-    name: "ONCHAIN",
-    cost: 100,
-    growthTime: 90000, // 1.5 minutes
-    baseReward: 180,
-    color: "#ff6b35",
-    rarity: "legendary",
-    unlockLevel: 8,
-    description: "The future is onchain",
+    name: "BASE",
   },
 ]
 
@@ -66,38 +43,39 @@ interface TokenSelectorProps {
   isOpen: boolean
   onClose: () => void
   onSelectToken: (tokenType: TokenType, stakeAmount: number) => void
-  playerLevel: number
+  getStakeCalls: (amount: string) => ContractFunctionParameters[]
+  onTransactionSuccess: () => void
+  onTransactionError: (error: any) => void
 }
 
 export default function TokenSelector({
   isOpen,
   onClose,
   onSelectToken,
-  playerLevel,
+  getStakeCalls,
+  onTransactionSuccess,
+  onTransactionError,
 }: TokenSelectorProps) {
   const [selectedToken, setSelectedToken] = useState<TokenType | null>(null)
   const [stakeAmount, setStakeAmount] = useState("1")
   const [showStakeInput, setShowStakeInput] = useState(false)
+  const [showTransaction, setShowTransaction] = useState(false)
 
-  const availableTokens = TOKEN_TYPES.filter((token) => playerLevel >= token.unlockLevel)
+  const availableTokens = TOKEN_TYPES // Todos os tokens estão sempre disponíveis
 
-  const generateTokenPattern = (color: string, rarity: string) => {
-    const lineCount = rarity === "legendary" ? 24 : rarity === "epic" ? 18 : rarity === "rare" ? 12 : 8
+  // Padrão visual simples para ETH
+  const generateEthPattern = () => {
     const lines = []
-
-    for (let i = 0; i < lineCount; i++) {
+    for (let i = 0; i < 8; i++) {
       const height = Math.random() * 50 + 15
-      const left = (i / lineCount) * 100
-      const opacity = rarity === "legendary" ? 0.9 : rarity === "epic" ? 0.7 : rarity === "rare" ? 0.6 : 0.5
-
+      const left = (i / 8) * 100
       lines.push(
         <motion.div
           key={i}
-          className="absolute bottom-0 w-0.5 rounded-full"
+          className="absolute bottom-0 w-0.5 rounded-full bg-blue-500"
           style={{
             left: `${left}%`,
-            backgroundColor: color,
-            opacity: opacity,
+            opacity: 0.6,
           }}
           initial={{ height: 0 }}
           animate={{ height: `${height}%` }}
@@ -112,46 +90,65 @@ export default function TokenSelector({
     return lines
   }
 
-  const getRarityBorder = (rarity: string) => {
-    switch (rarity) {
-      case "legendary":
-        return "border-orange-400 shadow-orange-500/30"
-      case "epic":
-        return "border-purple-400 shadow-purple-500/30"
-      case "rare":
-        return "border-blue-400 shadow-blue-500/30"
-      default:
-        return "border-gray-300 shadow-gray-500/20"
-    }
-  }
-
   const handleTokenSelect = (token: TokenType) => {
     setSelectedToken(token)
-    setStakeAmount("1")
+    setStakeAmount("0.0001")
     setShowStakeInput(true)
   }
 
   const handlePlant = () => {
     if (selectedToken) {
-      const amount = parseInt(stakeAmount) || 1
+      setShowTransaction(true)
+    }
+  }
+
+  const handleTransactionSuccess = () => {
+    if (selectedToken) {
+      const amount = parseFloat(stakeAmount) || 0.0001
       onSelectToken(selectedToken, amount)
       setSelectedToken(null)
-      setStakeAmount("1")
+      setStakeAmount("0.0001")
       setShowStakeInput(false)
+      setShowTransaction(false)
+      onTransactionSuccess()
+    }
+  }
+
+  const handleTransactionError = (error: any) => {
+    setShowTransaction(false)
+    onTransactionError(error)
+  }
+
+  const getCurrentStakeCalls = () => {
+    if (!selectedToken) return []
+    try {
+      // Usar conversão segura para wei e depois de volta para string
+      const weiValue = safeParseEth(stakeAmount || "0.0001")
+      const amountInEther = formatEthForDisplay(weiValue)
+      return getStakeCalls(amountInEther)
+    } catch (error) {
+      // Fallback para valor mínimo em caso de erro
+      const fallbackWei = parseUnits("0.0001", 18)
+      const fallbackAmount = formatEthForDisplay(fallbackWei)
+      return getStakeCalls(fallbackAmount)
     }
   }
 
   const handleClose = () => {
     setSelectedToken(null)
-    setStakeAmount("1")
+    setStakeAmount("0.0001")
     setShowStakeInput(false)
     onClose()
   }
 
-  const getTotalCost = () => {
-    if (!selectedToken) return 0
-    const amount = parseInt(stakeAmount) || 1
-    return selectedToken.cost * amount
+  const getStakeAmountValue = () => {
+    try {
+      const weiValue = safeParseEth(stakeAmount || "0.0001")
+      const ethValue = formatEthForDisplay(weiValue)
+      return parseFloat(ethValue)
+    } catch (error) {
+      return 0.0001
+    }
   }
 
   return (
@@ -211,10 +208,7 @@ export default function TokenSelector({
                     <motion.button
                       key={token.id}
                       onClick={() => handleTokenSelect(token)}
-                      className={`
-                        relative p-3 rounded-sm border-2 transition-all duration-200
-                        ${getRarityBorder(token.rarity)} hover:shadow-lg cursor-pointer
-                      `}
+                      className="relative p-3 rounded-sm border-2 border-blue-400 shadow-blue-500/30 hover:shadow-lg cursor-pointer transition-all duration-200"
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 + index * 0.05 }}
@@ -224,13 +218,12 @@ export default function TokenSelector({
                       <div className="flex items-center gap-3">
                         {/* Token Visual */}
                         <div className="relative w-12 h-12 bg-gray-50 rounded-sm overflow-hidden">
-                          {generateTokenPattern(token.color, token.rarity)}
+                          {generateEthPattern()}
                           <motion.div
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm"
-                            style={{ backgroundColor: token.color }}
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-blue-500"
                             animate={{
-                              width: token.rarity === "legendary" ? "18px" : token.rarity === "epic" ? "16px" : "12px",
-                              height: token.rarity === "legendary" ? "18px" : token.rarity === "epic" ? "16px" : "12px",
+                              width: "16px",
+                              height: "16px",
                             }}
                           />
                         </div>
@@ -239,27 +232,11 @@ export default function TokenSelector({
                         <div className="flex-1 text-left">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-gray-900 text-sm">{token.name}</h3>
-                            <span
-                              className={`
-                              px-2 py-0.5 text-xs rounded-sm font-medium
-                              ${
-                                token.rarity === "legendary"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : token.rarity === "epic"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : token.rarity === "rare"
-                                      ? "bg-blue-100 text-blue-800"
-                                      : "bg-gray-100 text-gray-800"
-                              }
-                            `}
-                            >
-                              {token.rarity}
-                            </span>
                           </div>
-                          <p className="text-xs text-gray-600 mb-1">{token.description}</p>
+                          <p className="text-xs text-gray-600 mb-1">Stake Base to earn rewards</p>
                           <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span>Cost: {token.cost} tokens</span>
-                            <span>Growth: {Math.floor(token.growthTime / 1000)}s</span>
+                            <span>Min: 0.0001 BASE</span>
+                            <span>Growth: 24h</span>
                           </div>
                         </div>
                       </div>
@@ -279,37 +256,37 @@ export default function TokenSelector({
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="flex items-center gap-3">
                     <div className="relative w-12 h-12 bg-gray-50 rounded-sm overflow-hidden">
-                      {selectedToken && generateTokenPattern(selectedToken.color, selectedToken.rarity)}
+                      {selectedToken && generateEthPattern()}
                       {selectedToken && (
                         <motion.div
-                          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm"
-                          style={{ backgroundColor: selectedToken.color }}
+                          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-blue-500"
                           animate={{
-                            width: selectedToken.rarity === "legendary" ? "18px" : selectedToken.rarity === "epic" ? "16px" : "12px",
-                            height: selectedToken.rarity === "legendary" ? "18px" : selectedToken.rarity === "epic" ? "16px" : "12px",
+                            width: "16px",
+                            height: "16px",
                           }}
                         />
                       )}
                     </div>
                     <div>
                       <h3 className="font-semibold text-gray-900 text-sm">{selectedToken?.name}</h3>
-                      <p className="text-xs text-gray-600">Cost per token: {selectedToken?.cost} tokens</p>
+                      <p className="text-xs text-gray-600">Stake Base to earn USDC rewards</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Stake Amount Input */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Amount to stake:</label>
+                  <label className="text-sm font-medium text-gray-700">Amount to stake (ETH):</label>
                   <input
                     type="number"
-                    min="1"
+                    min="0.0001"
+                    step="0.0001"
                     value={stakeAmount}
-                    onChange={(e) => setStakeAmount(e.target.value)}
+                    onChange={(e) => setStakeAmount(normalizeInput(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="1"
+                    placeholder="0.0001"
                   />
-                  <p className="text-xs text-gray-500">Min: 1</p>
+                  <p className="text-xs text-gray-500">Min: 0.0001 ETH</p>
                 </div>
 
                 {/* Action Buttons */}
@@ -327,22 +304,22 @@ export default function TokenSelector({
                     Plant
                   </button>
                 </div>
+
+                {/* Transaction component */}
+                {showTransaction && (
+                  <div className="mt-4">
+                    <Transaction
+                      chainId={baseSepolia.id}
+                      calls={getCurrentStakeCalls()}
+                      onSuccess={handleTransactionSuccess}
+                      onError={handleTransactionError}
+                    />
+                  </div>
+                )}
               </motion.div>
             )}
 
-            {/* Locked Tokens Info */}
-            {!showStakeInput && TOKEN_TYPES.length > availableTokens.length && (
-              <motion.div
-                className="mt-4 p-2 bg-gray-50 rounded-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-              >
-                <p className="text-xs text-gray-600 text-center">
-                  {TOKEN_TYPES.length - availableTokens.length} more tokens unlock as you level up!
-                </p>
-              </motion.div>
-            )}
+
           </motion.div>
         </motion.div>
       )}

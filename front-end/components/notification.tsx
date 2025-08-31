@@ -9,7 +9,7 @@ interface NotificationProps {
 export default function Notification({ message }: NotificationProps) {
   return (
     <motion.div
-      className="fixed top-4 right-4 left-4 bg-white border border-gray-200 text-gray-900 px-4 py-3 rounded-lg shadow-lg z-50 font-medium max-w-md mx-auto"
+      className="fixed top-4 right-4 left-4 bg-white border border-gray-200 text-gray-900 px-4 py-3 rounded-lg shadow-lg z-[9999] font-medium max-w-md mx-auto"
       initial={{ x: 100, opacity: 0, scale: 0.9 }}
       animate={{ x: 0, opacity: 1, scale: 1 }}
       exit={{ x: 100, opacity: 0, scale: 0.9 }}

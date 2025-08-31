@@ -4,13 +4,16 @@ import { motion } from "framer-motion"
 import Plot from "./plot"
 import type { Plot as PlotType } from "./token-farm-game"
 import type { TokenType } from "./token-selector"
+import type { ContractFunctionParameters } from 'viem'
 
 interface FarmGridProps {
   plots: PlotType[]
   onPlotClick: (index: number) => void
   onPlantToken: (index: number, tokenType: TokenType, stakeAmount: number) => void
   collectionAnimation?: { index: number; tokens: number } | null
-  playerLevel: number
+  getStakeCalls: (amount: string) => ContractFunctionParameters[]
+  onTransactionSuccess: () => void
+  onTransactionError: (error: any) => void
 }
 
 export default function FarmGrid({
@@ -18,7 +21,9 @@ export default function FarmGrid({
   onPlotClick,
   onPlantToken,
   collectionAnimation,
-  playerLevel,
+  getStakeCalls,
+  onTransactionSuccess,
+  onTransactionError,
 }: FarmGridProps) {
   return (
     <motion.div
@@ -36,7 +41,9 @@ export default function FarmGrid({
             onHarvest={() => onPlotClick(index)}
             isAnimating={collectionAnimation?.index === index}
             animationTokens={collectionAnimation?.tokens || 0}
-            playerLevel={playerLevel}
+            getStakeCalls={getStakeCalls}
+            onTransactionSuccess={onTransactionSuccess}
+            onTransactionError={onTransactionError}
           />
         ))}
       </div>

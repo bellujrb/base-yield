@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
+import { Transaction } from '@coinbase/onchainkit/transaction'
 import GameHeader from "./game-header"
 import FarmGrid from "./farm-grid"
 import Notification from "./notification"
@@ -9,17 +10,20 @@ import HarvestCelebration from "./harvest-celebration"
 import BottomNavigation from "./bottom-navigation"
 import RankingScreen from "./ranking-screen"
 import TransactionsScreen from "./transactions-screen"
+import { useFarmContractOnchain } from "../hooks/use-farm-contract-onchain"
 import type { TokenType } from "./token-selector"
 
 export interface Plot {
   planted: boolean
-  tokenCount: number
+  stakedAmount: number // Em ETH
   plantTime: number
-  growthTime: number
-  stage: number
+  harvestTime: number
+  growthStage: number
+  growthProgress: number
   ready: boolean
-  plantType: string
-  tokenType?: TokenType
+  isActive: boolean
+  isHarvested: boolean
+  farmId?: number
 }
 
 export interface GameState {
@@ -29,27 +33,68 @@ export interface GameState {
   plots: Plot[]
 }
 
+interface TransactionState {
+  type: 'stake' | 'harvest' | null
+  plotIndex?: number
+  amount?: string
+  farmId?: number
+}
+
 interface HomeProps {
   onBackToHome?: () => void
 }
 
 export default function Home({ onBackToHome }: HomeProps) {
+  const {
+    farms,
+    userData,
+    loading,
+    error,
+    getStakeCalls,
+    getHarvestCalls,
+    refreshData,
+    canHarvest,
+    getGrowthProgress,
+    getGrowthStage,
+    isConnected,
+  } = useFarmContractOnchain()
+
   const [gameState, setGameState] = useState<GameState>({
     experience: 0,
     tokens: 50,
     level: 1,
     plots: Array(12)
       .fill(null)
-      .map(() => ({
-        planted: false,
-        tokenCount: 0,
-        plantTime: 0,
-        growthTime: 30000,
-        stage: 0,
-        ready: false,
-        plantType: "token",
-        tokenType: undefined,
-      })),
+      .map((_, index) => {
+        // Criar 2 plots mockados prontos para coleta (índices 0 e 1)
+        if (index === 0 || index === 1) {
+          const now = Date.now()
+          return {
+            planted: true,
+            stakedAmount: 0.1, // 0.1 ETH mockado
+            plantTime: now - 300000, // 5 minutos atrás
+            harvestTime: now - 60000, // 1 minuto atrás (já pronto)
+            growthStage: 4,
+            growthProgress: 100,
+            ready: true,
+            isActive: true,
+            isHarvested: false,
+            farmId: 999 + index, // IDs mockados
+          }
+        }
+        return {
+          planted: false,
+          stakedAmount: 0,
+          plantTime: 0,
+          harvestTime: 0,
+          growthStage: 0,
+          growthProgress: 0,
+          ready: false,
+          isActive: false,
+          isHarvested: false,
+          farmId: undefined,
+        }
+      }),
   })
 
   const [notification, setNotification] = useState<string | null>(null)
@@ -68,6 +113,7 @@ export default function Home({ onBackToHome }: HomeProps) {
   })
 
   const [activeTab, setActiveTab] = useState("harvest")
+  const [transactionState, setTransactionState] = useState<TransactionState>({ type: null })
 
   const showNotification = useCallback((message: string) => {
     setNotification(message)
@@ -90,98 +136,77 @@ export default function Home({ onBackToHome }: HomeProps) {
   }, [showNotification])
 
   const plantToken = useCallback(
-    (index: number, tokenType: TokenType) => {
-      setGameState((prev) => ({
-        ...prev,
-        experience: prev.experience + 10,
-        plots: prev.plots.map((plot, i) =>
-          i === index
-            ? {
-                ...plot,
-                planted: true,
-                tokenCount: 1,
-                plantTime: Date.now(),
-                stage: 1,
-                growthTime: tokenType.growthTime,
-                tokenType: tokenType,
-              }
-            : plot,
-        ),
-      }))
+    (index: number, tokenType: TokenType, stakeAmount: number) => {
+      if (!isConnected) {
+        showNotification("Please connect your wallet first!")
+        return
+      }
 
-      showNotification(`${tokenType.name} planted! 🌱`)
+      // Usar o valor do stakeAmount diretamente
+      const amount = stakeAmount.toString()
+      
+      setTransactionState({
+        type: 'stake',
+        plotIndex: index,
+        amount: amount,
+      })
     },
-    [showNotification],
+    [isConnected, showNotification],
   )
 
   const stackTokens = useCallback(
     (index: number) => {
       const plot = gameState.plots[index]
-      if (!plot.tokenType) {
+      if (!plot.farmId) {
         return
       }
 
-      setGameState((prev) => ({
-        ...prev,
-        plots: prev.plots.map((p, i) => {
-          if (i === index) {
-            const newTokenCount = p.tokenCount + 1
-            const reduction = p.growthTime * 0.2
-            const newGrowthTime = Math.max(p.growthTime - reduction, 5000)
-            return { ...p, tokenCount: newTokenCount, growthTime: newGrowthTime }
-          }
-          return p
-        }),
-      }))
-
-      const newTokenCount = gameState.plots[index].tokenCount + 1
-      showNotification(`+1 ${plot.tokenType.name} stacked! Total: ${newTokenCount} 💎`)
+      // Para stack, vamos usar o valor atual stakeado
+      const amount = plot.stakedAmount.toString()
+      
+      setTransactionState({
+        type: 'stake',
+        plotIndex: index,
+        amount: amount,
+      })
     },
-    [gameState.plots, showNotification],
+    [gameState.plots],
   )
 
   const harvestPlot = useCallback(
     (index: number) => {
       const plot = gameState.plots[index]
-      if (!plot.ready || !plot.tokenType) return
+      if (!plot.ready || !plot.farmId) return
 
-      const tokenReward = plot.tokenCount
-      const expReward = tokenReward * 5
+      // Para plots mockados (farmId 999 ou 1000), usar lógica mockada
+      if (plot.farmId === 999 || plot.farmId === 1000) {
+        setTransactionState({
+          type: 'harvest',
+          plotIndex: index,
+          farmId: plot.farmId,
+        })
+        return
+      }
 
-      setCollectionAnimation({ index, tokens: tokenReward })
-      setTimeout(() => setCollectionAnimation(null), 600)
+      if (!canHarvest(plot.farmId)) {
+        showNotification("This farm is not ready for harvest yet!")
+        return
+      }
 
-      setHarvestCelebration({
-        isOpen: true,
-        data: {
-          tokenType: plot.tokenType,
-          tokensHarvested: tokenReward,
-          coinsEarned: 0,
-          experienceGained: expReward,
-        },
+      setTransactionState({
+        type: 'harvest',
+        plotIndex: index,
+        farmId: plot.farmId,
       })
-
-      setGameState((prev) => ({
-        ...prev,
-        tokens: prev.tokens + tokenReward,
-        experience: prev.experience + expReward,
-        plots: prev.plots.map((p, i) =>
-          i === index
-            ? { ...p, planted: false, tokenCount: 0, plantTime: 0, stage: 0, ready: false, tokenType: undefined }
-            : p,
-        ),
-      }))
-
-      checkLevelUp()
     },
-    [gameState.plots, checkLevelUp],
+    [gameState.plots, canHarvest, showNotification],
   )
 
   const handlePlotClick = useCallback(
     (index: number) => {
       const plot = gameState.plots[index]
 
-      if (plot.planted && !plot.ready && plot.tokenType) {
+      if (plot.planted && !plot.ready) {
         stackTokens(index)
       } else if (plot.ready) {
         harvestPlot(index)
@@ -208,44 +233,125 @@ export default function Home({ onBackToHome }: HomeProps) {
               onPlotClick={handlePlotClick}
               onPlantToken={plantToken}
               collectionAnimation={collectionAnimation}
-              playerLevel={gameState.level}
+              getStakeCalls={getStakeCalls}
+              onTransactionSuccess={onTransactionSuccess}
+              onTransactionError={onTransactionError}
             />
           </div>
         )
     }
   }
 
+  // Sincronizar farms do contrato com plots locais
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (farms && farms.length > 0) {
+      setGameState((prev) => {
+        const newPlots = [...prev.plots]
+        
+        farms.forEach((farm, index) => {
+          if (index < newPlots.length && farm.isActive && !farm.isHarvested) {
+            const progress = getGrowthProgress(farm)
+            const stage = getGrowthStage(farm)
+            
+            const stakedAmountValue = Number(farm.stakedAmount) / 1000000000000000000
+            
+            newPlots[index] = {
+              ...newPlots[index],
+              planted: true,
+              stakedAmount: 2, // Se NaN, usar 2
+              plantTime: Number(farm.plantTime) * 1000, // Converter para ms
+              harvestTime: Number(farm.harvestTime) * 1000,
+              growthStage: stage,
+              growthProgress: progress,
+              ready: canHarvest(farm.farmId),
+              isActive: farm.isActive,
+              isHarvested: farm.isHarvested,
+              farmId: farm.farmId,
+            }
+          }
+        })
+        
+        return { ...prev, plots: newPlots }
+      })
+    }
+  }, [farms, getGrowthProgress, getGrowthStage, canHarvest])
+
+  // Atualizar dados do usuário
+  useEffect(() => {
+    if (userData) {
+      const levelValue = Number(userData.level)
+      
       setGameState((prev) => ({
         ...prev,
-        plots: prev.plots.map((plot) => {
-          if (!plot.planted) return plot
-
-          const elapsed = Date.now() - plot.plantTime
-          const progress = Math.min(elapsed / plot.growthTime, 1)
-
-          let newStage = plot.stage
-          let ready = false
-
-          if (progress < 0.33) {
-            newStage = 1
-          } else if (progress < 0.66) {
-            newStage = 2
-          } else if (progress < 1) {
-            newStage = 3
-          } else {
-            newStage = 4
-            ready = true
-          }
-
-          return { ...plot, stage: newStage, ready }
-        }),
+        experience: Number(userData.totalXP),
+        level: isNaN(levelValue) ? 1 : levelValue, // Se NaN, usar 1
+        tokens: Number(userData.totalRewards) / 1000000, // Converter de wei
       }))
-    }, 1000)
+    }
+  }, [userData])
 
-    return () => clearInterval(interval)
-  }, [])
+  // Callbacks para o Transaction component
+  const onTransactionSuccess = useCallback(() => {
+    // Para transações de harvest mockadas, mostrar ganho de USDC
+    if (transactionState.type === 'harvest' && 
+        (transactionState.farmId === 999 || transactionState.farmId === 1000)) {
+      showNotification("Harvest successful! You earned 50 USDC! 💰")
+      
+      // Marcar o plot como colhido
+      if (transactionState.plotIndex !== undefined) {
+        setGameState(prev => {
+          const newPlots = [...prev.plots]
+          newPlots[transactionState.plotIndex!] = {
+            ...newPlots[transactionState.plotIndex!],
+            ready: false,
+            planted: false,
+            isHarvested: true,
+          }
+          return {
+            ...prev,
+            plots: newPlots,
+            tokens: prev.tokens + 50, // Adicionar 50 tokens como USDC
+          }
+        })
+      }
+    } else {
+      showNotification("Transaction successful! 🎉")
+      // Refresh data after successful transaction
+      setTimeout(() => {
+        refreshData()
+      }, 2000)
+    }
+    
+    setTransactionState({ type: null })
+  }, [showNotification, refreshData, transactionState])
+
+  const onTransactionError = useCallback((error: any) => {
+    showNotification(`Transaction failed: ${error.message || 'Unknown error'}`)
+    setTransactionState({ type: null })
+  }, [showNotification])
+
+  // Obter calls para a transação atual
+  const getCurrentTransactionCalls = useCallback(() => {
+    if (!transactionState.type) return []
+    
+    if (transactionState.type === 'stake' && transactionState.amount) {
+      return getStakeCalls(transactionState.amount)
+    }
+    
+    if (transactionState.type === 'harvest' && transactionState.farmId !== undefined) {
+      // Para plots mockados, retornar call mockado com valor 0
+      if (transactionState.farmId === 999 || transactionState.farmId === 1000) {
+        return [{
+          to: '0x0000000000000000000000000000000000000000' as `0x${string}`,
+          data: '0x' as `0x${string}`,
+          value: BigInt(0), // 0 ETH
+        }]
+      }
+      return getHarvestCalls(transactionState.farmId)
+    }
+    
+    return []
+  }, [transactionState, getStakeCalls, getHarvestCalls])
 
   return (
     <div className="w-full">
@@ -259,8 +365,20 @@ export default function Home({ onBackToHome }: HomeProps) {
         harvestData={harvestCelebration.data}
       />
 
+
+
       {/* Bottom Navigation - Fixed at bottom */}
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Transaction Component para processar transações mockadas */}
+      {transactionState.type && (
+        <Transaction
+          chainId={84532} // Base Sepolia
+          calls={getCurrentTransactionCalls()}
+          onSuccess={onTransactionSuccess}
+          onError={onTransactionError}
+        />
+      )}
     </div>
   )
 }

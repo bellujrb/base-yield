@@ -33,7 +33,7 @@ export default function HarvestCelebration({ isOpen, onClose, harvestData }: Har
     for (let i = 0; i < 40; i++) {
       const height = Math.random() * 80 + 20
       const left = (i / 40) * 100
-      const color = harvestData?.tokenType.color || "#22c55e"
+      const color = "#0052ff" // Cor padrão para ETH
       const delay = i * 0.02
 
       lines.push(
@@ -113,7 +113,7 @@ export default function HarvestCelebration({ isOpen, onClose, harvestData }: Har
               >
                 <motion.div
                   className="w-16 h-16 rounded-lg mx-auto"
-                  style={{ backgroundColor: harvestData.tokenType.color }}
+                  style={{ backgroundColor: "#0052ff" }}
                   animate={{
                     scale: [1, 1.1, 1],
                     rotate: [0, 5, -5, 0],
@@ -131,7 +131,7 @@ export default function HarvestCelebration({ isOpen, onClose, harvestData }: Har
                     key={i}
                     className="absolute w-3 h-3 rounded-sm"
                     style={{
-                      backgroundColor: harvestData.tokenType.color,
+                      backgroundColor: "#0052ff",
                       top: "50%",
                       left: "50%",
                     }}
