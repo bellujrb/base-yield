@@ -1,0 +1,6 @@
+[submodule "blockchain/lib/solady"]
+	path = blockchain/lib/solady
+	url = https://github.com/vectorized/solady
+[submodule "blockchain/lib/openzeppelin-contracts"]
+	path = blockchain/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
